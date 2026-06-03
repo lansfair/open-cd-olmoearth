@@ -63,8 +63,8 @@ def main() -> None:
             "weights.pth",
             "backbone_inchannels=12",
             'modality="sentinel2_l2a"',
-            "scales=[1, 0.5, 0.25, 0.125]",
-            "test_cfg=dict(size_divisor=32)",
+            "scales=[4, 2, 1, 0.5]",
+            "test_cfg=dict(size_divisor=16)",
         ],
     )
     _assert_contains(
@@ -77,6 +77,8 @@ def main() -> None:
             'modality="sentinel2_l2a"',
             'modality="sentinel1"',
             "fast_pass=False",
+            "scales=[4, 2, 1, 0.5]",
+            "test_cfg=dict(size_divisor=16)",
         ],
     )
     _assert_contains(

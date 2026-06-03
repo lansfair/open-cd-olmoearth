@@ -84,7 +84,8 @@ projects/olmoearth/configs/bright/olmoearth-base_upernet_1xb1-80k_bright-1024x10
 
 The config uses Open-CD's iter-based BRIGHT schedule, OLMoEarth dense features,
 absolute feature difference fusion, MultiLevelNeck to produce stride
-16/32/64/128 features, and UPerNet for four-class damage segmentation.
+4/8/16/32 features from patch-size-16 OLMoEarth tokens, and UPerNet for
+four-class damage segmentation.
 
 ## Validate
 

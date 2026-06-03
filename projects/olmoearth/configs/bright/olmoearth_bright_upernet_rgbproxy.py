@@ -10,7 +10,7 @@ data_preprocessor = dict(
     size=(1024, 1024),
     pad_val=0,
     seg_pad_val=255,
-    test_cfg=dict(size_divisor=32),
+    test_cfg=dict(size_divisor=16),
 )
 
 olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
@@ -39,7 +39,7 @@ model = dict(
         policy="abs_diff",
         embed_dim=embed_dim,
         out_channels=embed_dim,
-        scales=[1, 0.5, 0.25, 0.125],
+        scales=[4, 2, 1, 0.5],
         norm_cfg=norm_cfg,
     ),
     decode_head=dict(
