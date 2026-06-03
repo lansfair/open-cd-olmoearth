@@ -14,7 +14,7 @@ data_preprocessor = dict(
 )
 
 olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
-olmoearth_checkpoint = f"{olmoearth_model_dir}/pytorch_model.bin"
+olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
 olmoearth_config = f"{olmoearth_model_dir}/config.json"
 patch_size = 16
 embed_dim = 768
