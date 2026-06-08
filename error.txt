@@ -1,1 +1,365 @@
-KeyError: 'OLMoEarthSiamEncoderDecoder is not in the mmengine::model registry. Please check whether the value of `OLMoEarthSiamEncoderDecoder` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
+# Copyright (c) Open-CD. All rights reserved.
+# Single-file config for LEVIR-CD RGB -> OLMoEarth Sentinel-2 L2A proxy.
+#
+# Run from the repository root:
+#   python tools/train.py projects/olmoearth/configs/levir-cd/olmoearth_levircd_128_s2rgb_upernet_1xb8_50e_single.py
+#
+# This config intentionally does NOT use _base_ inheritance.
+
+# -------------------------------------------------------------------------
+# 0. Registry / custom project import
+# -------------------------------------------------------------------------
+default_scope = "opencd"
+
+custom_imports = dict(
+    imports=["projects.olmoearth"],
+    allow_failed_imports=False,
+)
+
+# -------------------------------------------------------------------------
+# 1. Paths and global switches
+# -------------------------------------------------------------------------
+data_root = "D:/xxx/levir-cd"
+
+# OLMoEarth-v1-Base directory. This directory should contain:
+#   config.json
+#   weights.pth
+olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
+olmoearth_config = f"{olmoearth_model_dir}/config.json"
+olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
+
+work_dir = "./work_dirs/olmoearth_levircd_128_s2rgb_upernet_1xb8_50e_single"
+
+# -------------------------------------------------------------------------
+# 2. Dataset / input settings
+# -------------------------------------------------------------------------
+dataset_type = "OLMoEarthLEVIRCDDataset"
+
+# Your images are 128x128 RGB png files:
+#   train/A/*.png
+#   train/B/*.png
+#   train/label/*.png
+#   val/A/*.png
+#   val/B/*.png
+#   val/label/*.png
+#   test/A/*.png
+#   test/B/*.png
+#   test/label/*.png
+crop_size = (128, 128)
+
+# RGB -> Sentinel-2 scale.
+# The scale factor is NOT hard-coded in the transform. It is computed as:
+#   target_s2_scale / input_max_value
+#
+# For uint8 PNG RGB:      input_max_value = 255.0
+# For 0~1 float RGB:      input_max_value = 1.0
+# For uint16 RGB:         input_max_value = 65535.0
+# For already 0~10000:    input_max_value = 10000.0
+input_max_value = 255.0
+target_s2_scale = 10000.0
+rgb_channel_order = "RGB"
+
+# OLMoEarth Sentinel-2 L2A band layout used by the project:
+#   ["B02", "B03", "B04", "B08", "B05", "B06", "B07", "B8A", "B11", "B12", "B01", "B09"]
+#
+# RGB mapping:
+#   R -> B04
+#   G -> B03
+#   B -> B02
+#
+# Other S2 bands are zero-filled and marked as missing by present_bands,
+# so they do not participate as valid observed bands in the OLMoEarth mask.
+present_bands = ["B04", "B03", "B02"]
+
+# Dummy timestamps for the two dates.
+# The actual values are only used to populate the OLMoEarth sample metadata.
+pre_timestamp = (1, 1, 2025)
+post_timestamp = (2, 1, 2025)
+
+train_pipeline = [
+    dict(
+        type="LoadOLMoEarthLEVIRPair",
+        to_float32=True,
+        rgb_channel_order=rgb_channel_order,
+        input_max_value=input_max_value,
+        target_s2_scale=target_s2_scale,
+        expected_shape=crop_size,
+        pre_timestamp=pre_timestamp,
+        post_timestamp=post_timestamp,
+    ),
+    dict(type="LoadOLMoEarthLEVIRAnnotations"),
+    dict(type="MultiImgRandomFlip", prob=0.5, direction="horizontal"),
+    dict(type="MultiImgRandomFlip", prob=0.5, direction="vertical"),
+    dict(type="PackOLMoEarthCDInputs"),
+]
+
+test_pipeline = [
+    dict(
+        type="LoadOLMoEarthLEVIRPair",
+        to_float32=True,
+        rgb_channel_order=rgb_channel_order,
+        input_max_value=input_max_value,
+        target_s2_scale=target_s2_scale,
+        expected_shape=crop_size,
+        pre_timestamp=pre_timestamp,
+        post_timestamp=post_timestamp,
+    ),
+    dict(type="LoadOLMoEarthLEVIRAnnotations"),
+    dict(type="PackOLMoEarthCDInputs"),
+]
+
+train_dataloader = dict(
+    batch_size=8,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type="DefaultSampler", shuffle=True),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        split="train",
+        img_suffix=".png",
+        seg_map_suffix=".png",
+        pipeline=train_pipeline,
+    ),
+)
+
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type="DefaultSampler", shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        split="val",
+        img_suffix=".png",
+        seg_map_suffix=".png",
+        pipeline=test_pipeline,
+        test_mode=True,
+    ),
+)
+
+test_dataloader = dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type="DefaultSampler", shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        split="test",
+        img_suffix=".png",
+        seg_map_suffix=".png",
+        pipeline=test_pipeline,
+        test_mode=True,
+    ),
+)
+
+val_evaluator = dict(
+    type="mmseg.IoUMetric",
+    iou_metrics=["mIoU", "mFscore"],
+    ignore_index=255,
+)
+test_evaluator = val_evaluator
+
+# -------------------------------------------------------------------------
+# 3. Model: OLMoEarth Base + UPerNet
+# -------------------------------------------------------------------------
+norm_cfg = dict(type="SyncBN", requires_grad=True)
+
+data_preprocessor = dict(
+    type="DualInputSegDataPreProcessor",
+    size=crop_size,
+    pad_val=0,
+    seg_pad_val=255,
+    test_cfg=dict(size_divisor=16),
+)
+
+patch_size = 16
+embed_dim = 768
+num_classes = 2
+
+model = dict(
+    type="OLMoEarthSiamEncoderDecoder",
+    data_preprocessor=data_preprocessor,
+    pretrained=None,
+
+    # Two dates are packed as 12 + 12 channels.
+    # The detector splits them into two 12-channel OLMoEarth S2 inputs.
+    backbone_inchannels=12,
+
+    backbone=dict(
+        type="OlmoEarthBackbone",
+        model_config_path=olmoearth_config,
+        modality="sentinel2_l2a",
+        patch_size=patch_size,
+        num_timesteps=1,
+        out_channels=embed_dim,
+
+        # IMPORTANT:
+        # fast_pass must be False because only B02/B03/B04 are observed.
+        # All other Sentinel-2 bands are zero-filled and masked as missing.
+        fast_pass=False,
+
+        init_cfg=dict(type="Pretrained", checkpoint=olmoearth_checkpoint),
+    ),
+
+    neck=dict(
+        type="OLMoEarthFeatureFusionPyramid",
+        policy="abs_diff",
+        embed_dim=embed_dim,
+        out_channels=embed_dim,
+        scales=[4, 2, 1, 0.5],
+        norm_cfg=norm_cfg,
+    ),
+
+    decode_head=dict(
+        type="mmseg.UPerHead",
+        in_channels=[embed_dim, embed_dim, embed_dim, embed_dim],
+        in_index=[0, 1, 2, 3],
+        pool_scales=(1, 2, 3, 6),
+        channels=512,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        ignore_index=255,
+        norm_cfg=norm_cfg,
+        align_corners=False,
+        loss_decode=[
+            dict(
+                type="mmseg.CrossEntropyLoss",
+                use_sigmoid=False,
+                avg_non_ignore=True,
+                loss_weight=1.0,
+            ),
+            dict(
+                type="mmseg.DiceLoss",
+                use_sigmoid=False,
+                loss_weight=0.5,
+                ignore_index=255,
+            ),
+        ],
+    ),
+
+    auxiliary_head=dict(
+        type="mmseg.FCNHead",
+        in_channels=embed_dim,
+        in_index=2,
+        channels=256,
+        num_convs=1,
+        concat_input=False,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        ignore_index=255,
+        norm_cfg=norm_cfg,
+        align_corners=False,
+        loss_decode=dict(
+            type="mmseg.CrossEntropyLoss",
+            use_sigmoid=False,
+            avg_non_ignore=True,
+            loss_weight=0.4,
+        ),
+    ),
+
+    train_cfg=dict(),
+    test_cfg=dict(mode="whole"),
+)
+
+# -------------------------------------------------------------------------
+# 4. Training: Epoch-based, 50 epochs
+# -------------------------------------------------------------------------
+max_epochs = 50
+
+train_cfg = dict(
+    type="EpochBasedTrainLoop",
+    max_epochs=max_epochs,
+    val_interval=1,
+)
+val_cfg = dict(type="ValLoop")
+test_cfg = dict(type="TestLoop")
+
+# Freeze OLMoEarth backbone for the first 5 epochs, then unfreeze.
+# If you want full fine-tuning from epoch 0, set unfreeze_epoch=0.
+custom_hooks = [
+    dict(type="FreezeBackboneUntilEpochHook", unfreeze_epoch=5),
+]
+
+optim_wrapper = dict(
+    type="AmpOptimWrapper",
+    optimizer=dict(
+        type="AdamW",
+        lr=1e-4,
+        weight_decay=0.01,
+        betas=(0.9, 0.999),
+    ),
+    clip_grad=dict(max_norm=1.0, norm_type=2),
+)
+
+param_scheduler = [
+    dict(
+        type="LinearLR",
+        start_factor=0.1,
+        by_epoch=True,
+        begin=0,
+        end=5,
+        convert_to_iter_based=True,
+    ),
+    dict(
+        type="PolyLR",
+        eta_min=1e-6,
+        power=1.0,
+        begin=5,
+        end=max_epochs,
+        by_epoch=True,
+        convert_to_iter_based=True,
+    ),
+]
+
+# -------------------------------------------------------------------------
+# 5. Runtime / hooks, all in this file
+# -------------------------------------------------------------------------
+default_hooks = dict(
+    timer=dict(type="IterTimerHook"),
+    logger=dict(type="LoggerHook", interval=50, log_metric_by_epoch=True),
+    param_scheduler=dict(type="ParamSchedulerHook"),
+    checkpoint=dict(
+        type="CheckpointHook",
+        by_epoch=True,
+        interval=1,
+        max_keep_ckpts=3,
+        save_best="mIoU",
+        rule="greater",
+        save_last=True,
+    ),
+    sampler_seed=dict(type="DistSamplerSeedHook"),
+    visualization=dict(
+        type="CDVisualizationHook",
+        interval=1,
+        img_shape=(crop_size[0], crop_size[1], 3),
+    ),
+)
+
+env_cfg = dict(
+    cudnn_benchmark=True,
+    mp_cfg=dict(mp_start_method="fork", opencv_num_threads=0),
+    dist_cfg=dict(backend="nccl"),
+)
+
+vis_backends = [dict(type="CDLocalVisBackend")]
+visualizer = dict(
+    type="CDLocalVisualizer",
+    vis_backends=vis_backends,
+    name="visualizer",
+    alpha=1.0,
+)
+
+log_processor = dict(type="LogProcessor", window_size=50, by_epoch=True)
+log_level = "INFO"
+
+load_from = None
+resume = False
+randomness = dict(seed=0)
+auto_scale_lr = dict(enable=False, base_batch_size=8)
+
+# TTA model is defined here only for completeness.
+# It will not be used unless you explicitly enable a TTA pipeline/test command.
+tta_model = dict(type="mmseg.SegTTAModel")
