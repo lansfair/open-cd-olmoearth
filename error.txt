@@ -1,0 +1,1 @@
+KeyError: 'OLMoEarthSiamEncoderDecoder is not in the mmengine::model registry. Please check whether the value of `OLMoEarthSiamEncoderDecoder` is correct or it was registered as expected. More details can be found at https://mmengine.readthedocs.io/en/latest/advanced_tutorials/config.html#import-the-custom-module'
