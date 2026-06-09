@@ -24,6 +24,8 @@
 # -------------------------------------------------------------------------
 # 0. Registry / custom project import
 # -------------------------------------------------------------------------
+find_unused_parameters = True
+
 default_scope = "opencd"
 
 custom_imports = dict(
@@ -34,7 +36,7 @@ custom_imports = dict(
 # -------------------------------------------------------------------------
 # 1. Paths
 # -------------------------------------------------------------------------
-data_root = "D:/xxx/levir-cd"
+data_root = "/mnt/ht2_nas2/wj/datasets/LEVIR-CD"
 
 # OLMoEarth-v1-Base directory. It should contain:
 #   config.json
@@ -43,7 +45,7 @@ olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
 olmoearth_config = f"{olmoearth_model_dir}/config.json"
 olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
 
-work_dir = "./work_dirs/olmoearth_levircd_128_s2rgb_fcnhead_numconvs0_1xb8_50e_single"
+work_dir = "./work_dirs/olmoearth_levircd_128_s2rgb_linearprobe_1xb8_frozen_50e"
 
 # -------------------------------------------------------------------------
 # 2. Dataset / RGB -> Sentinel-2 L2A proxy
@@ -115,9 +117,11 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        split="train",
-        img_suffix=".png",
-        seg_map_suffix=".png",
+        data_prefix=dict(
+            img_path_from="train_sliced/A",
+            img_path_to="train_sliced/B",
+            seg_map_path="train_sliced/label",
+        ),
         pipeline=train_pipeline,
     ),
 )
@@ -130,9 +134,11 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        split="val",
-        img_suffix=".png",
-        seg_map_suffix=".png",
+        data_prefix=dict(
+            img_path_from="val_sliced/A",
+            img_path_to="val_sliced/B",
+            seg_map_path="val_sliced/label",
+        ),
         pipeline=test_pipeline,
         test_mode=True,
     ),
@@ -146,9 +152,11 @@ test_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        split="test",
-        img_suffix=".png",
-        seg_map_suffix=".png",
+        data_prefix=dict(
+            img_path_from="test_sliced/A",
+            img_path_to="test_sliced/B",
+            seg_map_path="test_sliced/label",
+        ),
         pipeline=test_pipeline,
         test_mode=True,
     ),
@@ -174,7 +182,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=16),
 )
 
-patch_size = 16
+patch_size = 8
 embed_dim = 768
 num_classes = 2
 
@@ -260,7 +268,7 @@ max_epochs = 50
 train_cfg = dict(
     type="EpochBasedTrainLoop",
     max_epochs=max_epochs,
-    val_interval=1,
+    val_interval=2,
 )
 val_cfg = dict(type="ValLoop")
 test_cfg = dict(type="TestLoop")
@@ -281,14 +289,9 @@ optim_wrapper = dict(
     type="AmpOptimWrapper",
     optimizer=dict(
         type="AdamW",
-        lr=5e-4,
+        lr=1e-3,
         weight_decay=0.01,
         betas=(0.9, 0.999),
-    ),
-    paramwise_cfg=dict(
-        custom_keys={
-            "backbone": dict(lr_mult=0.0, decay_mult=0.0),
-        }
     ),
     clip_grad=dict(max_norm=1.0, norm_type=2),
 )
