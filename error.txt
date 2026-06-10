@@ -16,3 +16,26 @@ Traceback (most recent call last):
   File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/runner.py", line 1841, in call_hook
     raise TypeError(f'{e} in {hook}') from None
 TypeError: expected str, bytes or os.PathLike object, not list in <opencd.engine.hooks.visualization_hook_Jie.CDVisualizationHook_Jie object at 0x7f61f6614da0>
+
+
+Traceback (most recent call last):
+  File "/mnt/ht2-nas2/wj/mm_series/open-cd-olmoearth/projects/olmoearth/../../tools/test.py", line 114, in <module>
+    main()
+  File "/mnt/ht2-nas2/wj/mm_series/open-cd-olmoearth/projects/olmoearth/../../tools/test.py", line 110, in main
+    runner.test()
+  File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/runner.py", line 1823, in test
+    metrics = self.test_loop.run()  # type: ignore
+              ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/loops.py", line 463, in run
+    self.run_iter(idx, data_batch)
+  File "/home/users_test/miniconda3/envs/abc/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/loops.py", line 492, in run_iter
+    self.runner.call_hook(
+  File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/runner.py", line 1839, in call_hook
+    getattr(hook, fn_name)(self, **kwargs)
+  File "/mnt/ht2-nas2/wj/mm_series/mmsegmentation/mmseg/engine/hooks/visualization_hook.py", line 114, in after_test_iter
+    self._test_index += 1
+    ^^^^^^^^^^^^^^^^
+AttributeError: 'CDVisualizationHook_Jie' object has no attribute '_test_index'
