@@ -1,7 +1,7 @@
 _base_ = "../../../../configs/common/standard_512x512_40k_levircd.py"
 
 custom_imports = dict(
-    imports=["projects.dinov3.opencd_dinov3"],
+    imports=["projects.dinov3"],
     allow_failed_imports=False,
 )
 
