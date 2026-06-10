@@ -15,4 +15,4 @@ Traceback (most recent call last):
     self.runner.call_hook(
   File "/mnt/ht2-nas2/wj/mm_series/mmengine/mmengine/runner/runner.py", line 1841, in call_hook
     raise TypeError(f'{e} in {hook}') from None
-TypeError: expected str, bytes or os.PathLike object, not list in <opencd.engine.hooks.visualization_hook.CDVisualizationHook object at 0x7f4e08638e60>
+TypeError: expected str, bytes or os.PathLike object, not list in <opencd.engine.hooks.visualization_hook_Jie.CDVisualizationHook_Jie object at 0x7f61f6614da0>
