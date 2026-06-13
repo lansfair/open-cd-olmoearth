@@ -10,6 +10,18 @@ test_cfg = dict(type="TestLoop")
 log_processor = dict(by_epoch=True)
 randomness = dict(seed=0)
 
+olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
+olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
+olmoearth_config = f"{olmoearth_model_dir}/config.json"
+
+model = dict(
+    backbone=dict(
+        model_config_path=olmoearth_config,
+        init_cfg=dict(type="Pretrained", checkpoint=olmoearth_checkpoint),
+        modality="sentinel2_l2a",
+    )
+)
+
 optim_wrapper = dict(
     type="OptimWrapper",
     optimizer=dict(type="AdamW", lr=1e-3, weight_decay=0.01),

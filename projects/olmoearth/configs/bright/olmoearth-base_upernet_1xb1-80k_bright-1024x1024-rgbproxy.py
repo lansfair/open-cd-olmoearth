@@ -17,6 +17,18 @@ test_cfg = dict(type="TestLoop")
 log_processor = dict(by_epoch=False)
 randomness = dict(seed=0)
 
+olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
+olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
+olmoearth_config = f"{olmoearth_model_dir}/config.json"
+
+model = dict(
+    backbone=dict(
+        model_config_path=olmoearth_config,
+        init_cfg=dict(type="Pretrained", checkpoint=olmoearth_checkpoint),
+        modality="sentinel2_l2a",
+    )
+)
+
 custom_hooks = [dict(type="FreezeBackboneUntilEpochHook", unfreeze_epoch=10000)]
 
 optim_wrapper = dict(
