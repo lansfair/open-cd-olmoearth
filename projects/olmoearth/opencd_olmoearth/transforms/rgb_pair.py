@@ -42,29 +42,36 @@ class RGBPairToOlmoEarth(BaseTransform):
         self.pre_timestamp = tuple(int(x) for x in pre_timestamp)
         self.post_timestamp = tuple(int(x) for x in post_timestamp)
         self.band_names = list(get_modality_bands(modality))
-        self.norm_config = (
-            _load_computed_norm("sentinel2_l2a")
-            if modality == "sentinel2_l2a"
-            else None
-        )
+        self.norm_config = _load_computed_norm(modality)
 
-    def _to_unit_scale(self, image: np.ndarray) -> np.ndarray:
+    def _to_rgb_scale(self, image: np.ndarray) -> np.ndarray:
         image = image.astype(np.float32, copy=False)
-        if self.input_value_range == "0_255":
-            return image / 255.0
+        if self.input_value_range == "0_1":
+            return image * 255.0
         return image
+
+    def _normalize_band(
+        self,
+        values: np.ndarray,
+        band_name: str,
+    ) -> np.ndarray:
+        stats = self.norm_config[band_name]
+        min_val = stats["mean"] - self.std_multiplier * stats["std"]
+        max_val = stats["mean"] + self.std_multiplier * stats["std"]
+        return (values - min_val) / (max_val - min_val)
 
     def _to_native_rgb(self, image: np.ndarray) -> np.ndarray:
         if image.ndim != 3 or image.shape[-1] != 3:
             raise ValueError(f"Expected HWC RGB image, got {image.shape}")
-        image = self._to_unit_scale(image)
+        image = self._to_rgb_scale(image)
         height, width = image.shape[:2]
         out = np.zeros((height, width, len(self.band_names)), dtype=np.float32)
         channel_to_index = {name: idx for idx, name in enumerate(self.rgb_channel_order)}
         for band_name in ("B", "G", "R"):
-            out[..., self.band_names.index(band_name)] = image[
-                ..., channel_to_index[band_name]
-            ]
+            out[..., self.band_names.index(band_name)] = self._normalize_band(
+                image[..., channel_to_index[band_name]],
+                band_name,
+            )
         return out
 
     def _convert_image(self, image: np.ndarray) -> np.ndarray:
