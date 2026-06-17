@@ -1,4 +1,4 @@
-_base_ = "./olmoearth-base_upernet_1xb1-80k_bright-1024x1024-rgb-sar.py"
+_base_ = "./olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py"
 
 olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-2m"
 olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"

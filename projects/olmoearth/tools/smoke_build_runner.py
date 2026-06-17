@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
         nargs="?",
         default=(
             "projects/olmoearth/configs/bright/"
-            "olmoearth-base_upernet_1xb1-1iter_bright-1024x1024-rgbproxy-smoke.py"
+            "olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-frozen.py"
         ),
     )
     parser.add_argument(

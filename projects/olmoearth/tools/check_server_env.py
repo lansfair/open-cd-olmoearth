@@ -7,7 +7,7 @@ from pathlib import Path
 
 DEFAULT_CONFIG = (
     "projects/olmoearth/configs/bright/"
-    "olmoearth-base_upernet_1xb1-1iter_bright-1024x1024-rgbproxy-smoke.py"
+    "olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-frozen.py"
 )
 
 
