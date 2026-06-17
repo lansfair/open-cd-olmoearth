@@ -24,7 +24,7 @@ def _load_computed_norm(modality: str) -> dict[str, dict[str, float]]:
 
 @TRANSFORMS.register_module()
 class LoadOLMoEarthBRIGHTPair(BaseTransform):
-    """Load BRIGHT pre RGB and post SAR for OLMoEarth RGB-proxy training.
+    """Load BRIGHT pre RGB and post SAR for OLMoEarth training.
 
     BRIGHT's released post-event SAR rasters are single-channel uint8 images.
     Following the Copernicus-FM BRIGHT baseline, this transform repeats that
@@ -40,6 +40,7 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
         rgb_channel_order: str = "RGB",
         input_value_range: str = "0_255",
         std_multiplier: float = 2.0,
+        pre_rgb_mode: str = "s2_proxy",
         post_sar_mode: str = "rgbproxy_to_s2",
         sar_db_range: tuple[float, float] = (-30.0, 5.0),
         pre_timestamp: tuple[int, int, int] = (1, 1, 2025),
@@ -50,9 +51,17 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
             raise ValueError("rgb_channel_order must be a permutation of RGB")
         if input_value_range not in {"0_255", "0_1", "s2"}:
             raise ValueError("input_value_range must be 0_255, 0_1, or s2")
-        if post_sar_mode not in {"rgbproxy_to_s2", "s1_vv_zero_vh", "s1_dup2"}:
+        if pre_rgb_mode not in {"s2_proxy", "native_rgb"}:
+            raise ValueError("pre_rgb_mode must be s2_proxy or native_rgb")
+        if post_sar_mode not in {
+            "rgbproxy_to_s2",
+            "s1_vv_zero_vh",
+            "s1_dup2",
+            "native_sar",
+        }:
             raise ValueError(
-                "post_sar_mode must be rgbproxy_to_s2, s1_vv_zero_vh, or s1_dup2"
+                "post_sar_mode must be rgbproxy_to_s2, s1_vv_zero_vh, "
+                "s1_dup2, or native_sar"
             )
         if sar_db_range[0] >= sar_db_range[1]:
             raise ValueError("sar_db_range must be ordered as (min_db, max_db)")
@@ -61,6 +70,7 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
         self.rgb_channel_order = rgb_channel_order
         self.input_value_range = input_value_range
         self.std_multiplier = std_multiplier
+        self.pre_rgb_mode = pre_rgb_mode
         self.post_sar_mode = post_sar_mode
         self.sar_db_range = tuple(float(x) for x in sar_db_range)
         self.pre_timestamp = tuple(int(x) for x in pre_timestamp)
@@ -69,6 +79,18 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
         self.norm_config = _load_computed_norm("sentinel2_l2a")
         self.s1_band_names = list(get_modality_bands("sentinel1"))
         self.s1_norm_config = _load_computed_norm("sentinel1")
+        self.rgb_band_names = (
+            list(get_modality_bands("rgb")) if pre_rgb_mode == "native_rgb" else []
+        )
+        self.rgb_norm_config = (
+            _load_computed_norm("rgb") if pre_rgb_mode == "native_rgb" else {}
+        )
+        self.sar_band_names = (
+            list(get_modality_bands("sar")) if post_sar_mode == "native_sar" else []
+        )
+        self.sar_norm_config = (
+            _load_computed_norm("sar") if post_sar_mode == "native_sar" else {}
+        )
 
     def _read_rgb(self, filename: str) -> np.ndarray:
         img_bytes = fileio.get(filename, backend_args=self.backend_args)
@@ -106,6 +128,37 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
         min_db, max_db = self.sar_db_range
         return image * (max_db - min_db) + min_db
 
+    def _rgb_to_native(self, image: np.ndarray) -> np.ndarray:
+        image = image.astype(np.float32, copy=False)
+        if self.input_value_range == "0_1":
+            image = image * 255.0
+        elif self.input_value_range == "s2":
+            image = image * (255.0 / 10000.0)
+        height, width = image.shape[:2]
+        out = np.zeros(
+            (height, width, len(self.rgb_band_names)), dtype=np.float32
+        )
+        channel_to_index = {
+            name: idx for idx, name in enumerate(self.rgb_channel_order)
+        }
+        for band_name in ("B", "G", "R"):
+            out[..., self.rgb_band_names.index(band_name)] = normalize_band(
+                image[..., channel_to_index[band_name]],
+                band_name,
+                self.rgb_norm_config,
+                self.std_multiplier,
+            )
+        return out
+
+    def _sar_to_native(self, image: np.ndarray) -> np.ndarray:
+        normalized = normalize_band(
+            image.astype(np.float32, copy=False),
+            "sar",
+            self.sar_norm_config,
+            self.std_multiplier,
+        )
+        return normalized[..., None]
+
     def _sar_to_s1_proxy(
         self,
         image: np.ndarray,
@@ -142,7 +195,26 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
                 f"{pre_rgb.shape} vs {post_sar.shape}"
             )
 
-        pre_image = self._rgb_to_pseudo_s2(pre_rgb)
+        if self.pre_rgb_mode == "native_rgb":
+            pre_image = self._rgb_to_native(pre_rgb)
+            pre_metainfo = dict(
+                olmoearth_modality="rgb",
+                olmoearth_num_timesteps=1,
+                olmoearth_band_names=list(self.rgb_band_names),
+                present_bands=["B", "G", "R"],
+                timestamps=np.asarray([self.pre_timestamp], dtype=np.int64),
+                source="bright_pre_native_rgb",
+            )
+        else:
+            pre_image = self._rgb_to_pseudo_s2(pre_rgb)
+            pre_metainfo = dict(
+                olmoearth_modality="sentinel2_l2a",
+                olmoearth_num_timesteps=1,
+                olmoearth_band_names=list(self.band_names),
+                present_bands=list(RGB_TO_SENTINEL2_L2A.values()),
+                timestamps=np.asarray([self.pre_timestamp], dtype=np.int64),
+                source="bright_pre_rgb_to_s2",
+            )
         if self.post_sar_mode == "rgbproxy_to_s2":
             post_image = self._rgb_to_pseudo_s2(np.stack([post_sar] * 3, axis=-1))
             post_metainfo = dict(
@@ -152,6 +224,16 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
                 present_bands=list(RGB_TO_SENTINEL2_L2A.values()),
                 timestamps=np.asarray([self.post_timestamp], dtype=np.int64),
                 source="bright_post_sar_rgbproxy_to_s2",
+            )
+        elif self.post_sar_mode == "native_sar":
+            post_image = self._sar_to_native(post_sar)
+            post_metainfo = dict(
+                olmoearth_modality="sar",
+                olmoearth_num_timesteps=1,
+                olmoearth_band_names=list(self.sar_band_names),
+                present_bands=list(self.sar_band_names),
+                timestamps=np.asarray([self.post_timestamp], dtype=np.int64),
+                source="bright_post_native_sar",
             )
         else:
             post_image, present_bands, proxy_filled_bands = self._sar_to_s1_proxy(
@@ -171,15 +253,7 @@ class LoadOLMoEarthBRIGHTPair(BaseTransform):
         results["img"] = [pre_image, post_image]
         results["img_shape"] = pre_rgb.shape[:2]
         results["ori_shape"] = pre_rgb.shape[:2]
-        mapped_bands = list(RGB_TO_SENTINEL2_L2A.values())
-        results["olmoearth_from_metainfo"] = dict(
-            olmoearth_modality="sentinel2_l2a",
-            olmoearth_num_timesteps=1,
-            olmoearth_band_names=list(self.band_names),
-            present_bands=mapped_bands,
-            timestamps=np.asarray([self.pre_timestamp], dtype=np.int64),
-            source="bright_pre_rgb_to_s2",
-        )
+        results["olmoearth_from_metainfo"] = pre_metainfo
         results["olmoearth_to_metainfo"] = post_metainfo
         return results
 

@@ -80,7 +80,30 @@ Available BRIGHT configs:
 projects/olmoearth/configs/bright/olmoearth-base_upernet_1xb1-80k_bright-1024x1024-rgbproxy.py
 projects/olmoearth/configs/bright/olmoearth-base_upernet_1xb1-80k_bright-1024x1024-s1-vv-zero-vh.py
 projects/olmoearth/configs/bright/olmoearth-base_upernet_1xb1-80k_bright-1024x1024-s1-dup2.py
+projects/olmoearth/configs/bright/olmoearth-base_upernet_1xb1-80k_bright-1024x1024-rgb-sar.py
 ```
+
+The `rgb-sar` config uses the generic four-slot RGB modality (`B`, `G`, `R`,
+`NIR`) and single-channel `sar` modality from the newer `olmoearth_pretrain`
+source. BRIGHT has no NIR channel, so NIR is zero-filled and marked missing;
+the encoder masks that independent bandset. Point `olmoearth_model_dir` in
+`olmoearth_bright_upernet_rgb_sar.py` at a checkpoint/config pretrained with
+both generic modality branches. The original OLMoEarth-v1 checkpoint does not
+contain them.
+
+For the BRIGHT comparison matrix, use these six explicit entry configs:
+
+| Pretrained model | Input adaptation | Backbone frozen | Full fine-tune |
+| --- | --- | --- | --- |
+| Official OLMoEarth-v1 | S2 proxy + S2 proxy | `olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-frozen.py` | `olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-finetune.py` |
+| OLMoEarth-10m | native RGB + native SAR | `olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py` | `olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-finetune.py` |
+| OLMoEarth-2m | native RGB + native SAR | `olmoearth-2m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py` | `olmoearth-2m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-finetune.py` |
+
+The frozen configs use `unfreeze_epoch=None`, which keeps both downstream
+backbones frozen for the whole run. Fine-tune configs remove the freeze hook,
+so all encoder parameters used by the selected modalities train from iteration
+zero. Update the 10m/2m `olmoearth_model_dir` placeholders to the exported
+checkpoint directories on the training server.
 
 The config uses Open-CD's iter-based BRIGHT schedule, OLMoEarth dense features,
 absolute feature difference fusion, MultiLevelNeck to produce stride

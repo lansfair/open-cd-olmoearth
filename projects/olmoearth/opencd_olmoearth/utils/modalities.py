@@ -22,6 +22,8 @@ SENTINEL1_BANDS = ["vv", "vh"]
 
 RGB_BANDS = ["B", "G", "R", "NIR"]
 
+SAR_BANDS = ["sar"]
+
 RGB_TO_SENTINEL2_L2A = {"R": "B04", "G": "B03", "B": "B02"}
 
 BRIGHT_CLASSES = ("background", "intact", "damaged", "destroyed")
@@ -50,6 +52,11 @@ MODALITY_SPECS = {
         name="rgb",
         bands=tuple(RGB_BANDS),
         sample_field="rgb",
+    ),
+    "sar": ModalitySpec(
+        name="sar",
+        bands=tuple(SAR_BANDS),
+        sample_field="sar",
     ),
 }
 

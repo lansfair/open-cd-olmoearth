@@ -31,6 +31,45 @@ def main() -> None:
     py_files = sorted(PROJECT.rglob("*.py"))
     _assert_python_syntax(py_files)
 
+    strategy_configs = {
+        "olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-frozen.py": [
+            "rgbproxy.py",
+            'unfreeze_epoch=None',
+            "s2proxy-frozen",
+        ],
+        "olmoearth-native_upernet_1xb1-80k_bright-1024x1024-s2proxy-finetune.py": [
+            "rgbproxy.py",
+            "custom_hooks = []",
+            "s2proxy-finetune",
+        ],
+        "olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py": [
+            "OlmoEarth-10m",
+            'modality="rgb"',
+            'modality="sar"',
+            'unfreeze_epoch=None',
+        ],
+        "olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-finetune.py": [
+            "OlmoEarth-10m",
+            'modality="rgb"',
+            'modality="sar"',
+            "custom_hooks = []",
+        ],
+        "olmoearth-2m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py": [
+            "OlmoEarth-2m",
+            'modality="rgb"',
+            'modality="sar"',
+            'unfreeze_epoch=None',
+        ],
+        "olmoearth-2m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-finetune.py": [
+            "OlmoEarth-2m",
+            'modality="rgb"',
+            'modality="sar"',
+            "custom_hooks = []",
+        ],
+    }
+    for filename, needles in strategy_configs.items():
+        _assert_contains(CONFIG_DIR / filename, needles)
+
     _assert_contains(
         CONFIG_DIR / "olmoearth-base_upernet_1xb1-80k_bright-1024x1024-rgbproxy.py",
         [
@@ -102,6 +141,34 @@ def main() -> None:
         ],
     )
     _assert_contains(
+        CONFIG_DIR
+        / "olmoearth-base_upernet_1xb1-80k_bright-1024x1024-rgb-sar.py",
+        [
+            "olmoearth_bright_upernet_rgb_sar.py",
+            "bright_1024_olmoearth_rgb_sar.py",
+            "AmpOptimWrapper",
+            "FreezeBackboneUntilEpochHook",
+        ],
+    )
+    _assert_contains(
+        CONFIG_DIR / "olmoearth_bright_upernet_rgb_sar.py",
+        [
+            "backbone_from_inchannels=4",
+            "backbone_to_inchannels=1",
+            'modality="rgb"',
+            'modality="sar"',
+            "OlmoEarth-RGB-SAR",
+        ],
+    )
+    _assert_contains(
+        CONFIG_DIR / "bright_1024_olmoearth_rgb_sar.py",
+        [
+            'pre_rgb_mode = "native_rgb"',
+            'post_sar_mode = "native_sar"',
+            "LoadOLMoEarthBRIGHTPair",
+        ],
+    )
+    _assert_contains(
         CONFIG_DIR / "bright_1024_olmoearth_rgbproxy.py",
         [
             "OLMoEarthBRIGHTDataset",
@@ -119,7 +186,11 @@ def main() -> None:
             "np.stack([image, image, image], axis=-1)",
             "rgb_to_pseudo_s2",
             "bright_post_sar_rgbproxy_to_s2",
-            "present_bands=mapped_bands",
+            'pre_rgb_mode: str = "s2_proxy"',
+            '"native_rgb"',
+            '"native_sar"',
+            "bright_pre_native_rgb",
+            "bright_post_native_sar",
             "post_sar_mode",
             "s1_vv_zero_vh",
             "s1_dup2",
