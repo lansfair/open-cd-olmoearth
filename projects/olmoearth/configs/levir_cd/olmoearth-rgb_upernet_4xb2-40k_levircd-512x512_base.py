@@ -1,13 +1,8 @@
 import os
 
-_base_ = [
-    "../../../../configs/_base_/default_runtime.py",
-]
+_base_ = "../../../../configs/_base_/default_runtime.py"
 
-custom_imports = dict(
-    imports=["projects.olmoearth.opencd_olmoearth"],
-    allow_failed_imports=False,
-)
+custom_imports = dict(imports=["projects.olmoearth"], allow_failed_imports=False)
 
 dataset_type = "LEVIR_CD_Dataset"
 data_root = os.path.join(os.environ.get("MM_ARCHIVE_DATA_HOME", "data"), "LEVIR-CD")
@@ -16,6 +11,7 @@ crop_size = (512, 512)
 patch_size = 16
 embed_dim = 768
 num_classes = 2
+norm_cfg = dict(type="SyncBN", requires_grad=True)
 
 train_pipeline = [
     dict(type="MultiImgLoadImageFromFile"),
@@ -33,7 +29,7 @@ train_pipeline = [
     ),
     dict(
         type="RGBPairToOlmoEarth",
-        modality="sentinel2_l2a",
+        modality="rgb",
         rgb_channel_order="BGR",
         input_value_range="0_255",
     ),
@@ -46,7 +42,7 @@ test_pipeline = [
     dict(type="MultiImgLoadAnnotations"),
     dict(
         type="RGBPairToOlmoEarth",
-        modality="sentinel2_l2a",
+        modality="rgb",
         rgb_channel_order="BGR",
         input_value_range="0_255",
     ),
@@ -62,9 +58,9 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            seg_map_path="train/label",
             img_path_from="train/A",
             img_path_to="train/B",
+            seg_map_path="train/label",
         ),
         test_mode=False,
         pipeline=train_pipeline,
@@ -80,9 +76,9 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            seg_map_path="val/label",
             img_path_from="val/A",
             img_path_to="val/B",
+            seg_map_path="val/label",
         ),
         test_mode=True,
         pipeline=test_pipeline,
@@ -98,9 +94,9 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            seg_map_path="test/label",
             img_path_from="test/A",
             img_path_to="test/B",
+            seg_map_path="test/label",
         ),
         test_mode=True,
         pipeline=test_pipeline,
@@ -108,9 +104,7 @@ test_dataloader = dict(
 )
 
 val_evaluator = dict(type="mmseg.IoUMetric", iou_metrics=["mFscore", "mIoU"])
-test_evaluator = dict(type="mmseg.IoUMetric", iou_metrics=["mFscore", "mIoU"])
-
-norm_cfg = dict(type="SyncBN", requires_grad=True)
+test_evaluator = val_evaluator
 
 data_preprocessor = dict(
     type="DualInputSegDataPreProcessor",
@@ -120,24 +114,20 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=patch_size),
 )
 
-olmoearth_model_dir = "/mnt/ht2-nas2/EO_test/model/OlmoEarth-v1-Base"
-olmoearth_checkpoint = f"{olmoearth_model_dir}/weights.pth"
-olmoearth_config = f"{olmoearth_model_dir}/config.json"
-
 model = dict(
     type="OLMoEarthSiamEncoderDecoder",
     data_preprocessor=data_preprocessor,
     pretrained=None,
-    backbone_inchannels=12,
+    backbone_inchannels=4,
     backbone=dict(
         type="OlmoEarthBackbone",
-        model_config_path=olmoearth_config,
-        modality="sentinel2_l2a",
+        model_config_path="",
+        modality="rgb",
         patch_size=patch_size,
         num_timesteps=1,
         out_channels=embed_dim,
-        pooling_type="mean",
-        init_cfg=dict(type="Pretrained", checkpoint=olmoearth_checkpoint),
+        fast_pass=False,
+        init_cfg=dict(type="Pretrained", checkpoint=""),
     ),
     neck=dict(
         type="OLMoEarthFeatureFusionPyramid",
@@ -149,7 +139,7 @@ model = dict(
     ),
     decode_head=dict(
         type="mmseg.UPerHead",
-        in_channels=[embed_dim, embed_dim, embed_dim, embed_dim],
+        in_channels=[embed_dim] * 4,
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=512,
@@ -199,23 +189,23 @@ model = dict(
 train_cfg = dict(type="IterBasedTrainLoop", max_iters=40000, val_interval=4000)
 val_cfg = dict(type="ValLoop")
 test_cfg = dict(type="TestLoop")
-
 log_processor = dict(by_epoch=False)
 randomness = dict(seed=0)
 
 optim_wrapper = dict(
     type="AmpOptimWrapper",
-    optimizer=dict(type="AdamW", lr=1e-3, betas=(0.9, 0.999), weight_decay=0.01),
+    optimizer=dict(type="AdamW", lr=1e-4, weight_decay=0.01),
+    clip_grad=dict(max_norm=1.0, norm_type=2),
 )
 
 param_scheduler = [
-    dict(type="LinearLR", start_factor=1e-6, by_epoch=False, begin=0, end=1000),
+    dict(type="LinearLR", start_factor=0.1, by_epoch=False, begin=0, end=1000),
     dict(
         type="PolyLR",
+        eta_min=1e-6,
         power=1.0,
         begin=1000,
         end=40000,
-        eta_min=0.0,
         by_epoch=False,
     ),
 ]
@@ -225,16 +215,12 @@ default_hooks = dict(
         type="CheckpointHook",
         by_epoch=False,
         interval=4000,
-        max_keep_ckpts=1,
+        max_keep_ckpts=3,
         save_best="mIoU",
+        rule="greater",
     ),
     logger=dict(type="LoggerHook", interval=50, log_metric_by_epoch=False),
-    visualization=dict(
-        type="CDVisualizationHook",
-        interval=1,
-        img_shape=(1024, 1024, 3),
-    ),
+    visualization=dict(type="CDVisualizationHook", interval=1, img_shape=(1024, 1024, 3)),
 )
 
 auto_scale_lr = dict(enable=False, base_batch_size=8)
-work_dir = "./work_dirs/olmoearth-base_upernet_4xb2-40k_levircd-rgb-s2proxy-p16-512x512"
