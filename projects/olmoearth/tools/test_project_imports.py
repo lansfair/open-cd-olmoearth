@@ -78,6 +78,28 @@ def _install_stubs() -> None:
         def __init__(self) -> None:
             super().__init__()
 
+    class EncoderDecoder(torch.nn.Module):
+        def __init__(
+            self,
+            backbone=None,
+            decode_head=None,
+            neck=None,
+            auxiliary_head=None,
+            train_cfg=None,
+            test_cfg=None,
+            data_preprocessor=None,
+            pretrained=None,
+            init_cfg=None,
+        ) -> None:
+            super().__init__()
+            self.backbone = backbone
+            self.decode_head = decode_head
+            self.neck = neck
+            self.auxiliary_head = auxiliary_head
+            self.train_cfg = train_cfg
+            self.test_cfg = test_cfg
+            self.data_preprocessor = data_preprocessor
+
     class _BaseCDDataset:
         pass
 
@@ -99,6 +121,8 @@ def _install_stubs() -> None:
     _module("mmseg.registry", MODELS=MODELS, DATASETS=DATASETS, TRANSFORMS=TRANSFORMS)
     _module("mmseg.models")
     _module("mmseg.models.necks", MultiLevelNeck=MultiLevelNeck)
+    _module("mmseg.models.segmentors")
+    _module("mmseg.models.segmentors.encoder_decoder", EncoderDecoder=EncoderDecoder)
     _module("mmseg.structures", SegDataSample=SegDataSample)
     _module("mmseg.utils", OptSampleList=object, SampleList=list)
 
@@ -127,7 +151,9 @@ def main() -> None:
     expected = {
         "models": {
             "OlmoEarthBackbone",
+            "OlmoEarthMultiModalBackbone",
             "OLMoEarthHeteroSiamEncoderDecoder",
+            "OLMoEarthMultiModalEncoderDecoder",
             "OLMoEarthSiamEncoderDecoder",
             "OLMoEarthFeatureFusionPyramid",
         },

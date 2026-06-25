@@ -19,6 +19,41 @@ EXPECTED_CONFIGS = {
         "s2proxy-frozen.py",
         "custom_hooks = []",
     ],
+    "olmoearth-native_temporal-upernet_1xb1-80k_bright-1024x1024-s2proxy-frozen.py": [
+        "s2proxy-frozen.py",
+        "OLMoEarthTemporalEncoderDecoder",
+        "num_timesteps=2",
+        'modality="sentinel2_l2a"',
+        "mmseg.MultiLevelNeck",
+        "unfreeze_epoch=None",
+    ],
+    "olmoearth-native_temporal-upernet_1xb1-80k_bright-1024x1024-s2proxy-finetune.py": [
+        "temporal-upernet",
+        "custom_hooks = []",
+    ],
+    "olmoearth-native_multimodal-upernet_1xb1-80k_bright-1024x1024-s2-s1dup2-frozen.py": [
+        "s2proxy-frozen.py",
+        "OLMoEarthMultiModalEncoderDecoder",
+        "OlmoEarthMultiModalBackbone",
+        'post_sar_mode="s1_dup2"',
+        'from_modality="sentinel2_l2a"',
+        'to_modality="sentinel1"',
+        "backbone_to_inchannels=2",
+        "unfreeze_epoch=None",
+    ],
+    "olmoearth-native_multimodal-upernet_1xb1-80k_bright-1024x1024-s2-s1dup2-finetune.py": [
+        "s2-s1dup2-frozen.py",
+        "custom_hooks = []",
+    ],
+    "olmoearth-native_multimodal-upernet_1xb1-80k_bright-1024x1024-s2-s1zero-vh-frozen.py": [
+        "s2-s1dup2-frozen.py",
+        'post_sar_mode="s1_vv_zero_vh"',
+        "s2-s1zero-vh-frozen",
+    ],
+    "olmoearth-native_multimodal-upernet_1xb1-80k_bright-1024x1024-s2-s1zero-vh-finetune.py": [
+        "s2-s1zero-vh-frozen.py",
+        "custom_hooks = []",
+    ],
     "olmoearth-10m_upernet_1xb1-80k_bright-1024x1024-rgb-sar-frozen.py": [
         "s2proxy-frozen.py",
         "OlmoEarth-10m",
@@ -74,7 +109,7 @@ def main() -> None:
         if needle not in transform_text:
             raise AssertionError(f"BRIGHT transform missing {needle}")
 
-    print("Validated exactly 6 BRIGHT configs and project Python syntax.")
+    print("Validated BRIGHT configs and project Python syntax.")
 
 
 if __name__ == "__main__":

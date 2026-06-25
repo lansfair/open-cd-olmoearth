@@ -1,3 +1,4 @@
+# 作用：将 LEVIR-CD RGB 图像映射为 Sentinel-2 L2A proxy，并使用旧版 OLMoEarth-v1-Base 做对照实验。
 import os
 
 _base_ = [
@@ -5,7 +6,7 @@ _base_ = [
 ]
 
 custom_imports = dict(
-    imports=["projects.olmoearth.opencd_olmoearth"],
+    imports=["projects.olmoearth"],
     allow_failed_imports=False,
 )
 
